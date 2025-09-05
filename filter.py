@@ -8,15 +8,24 @@ from datetime import datetime, timedelta
 # ---------------------------
 st.title("Stocks with Continuous Positive Change")
 
-# CSV path in the same folder (replace with actual filename)
+# Read CSV from same folder
 csv_file = "All Stocks Streamlit.csv"
 df_stocks = pd.read_csv(csv_file)
+
+# Strip spaces from column names (just in case)
+df_stocks.columns = df_stocks.columns.str.strip()
 
 st.write("Sample of stock list from CSV:")
 st.dataframe(df_stocks.head())
 
 # User input: number of consecutive positive days
-n_days = st.number_input("Select number of consecutive positive days", min_value=1, max_value=7, value=3, step=1)
+n_days = st.number_input(
+    "Select number of consecutive positive days",
+    min_value=1,
+    max_value=7,
+    value=3,
+    step=1
+)
 
 # Date range: today and last 7 days
 end_date = datetime.today()
@@ -28,8 +37,8 @@ results = []
 
 # Loop through each stock
 for idx, row in df_stocks.iterrows():
-    symbol = row['b']  # Column 'b' has stock code
-    exchange = row['e']  # Column 'e' has exchange code
+    symbol = row['Code']  # updated column name
+    exchange = row['EXCH']  # updated column name
     
     # Construct yfinance ticker
     if exchange.upper() == "NSE":
@@ -51,7 +60,6 @@ for idx, row in df_stocks.iterrows():
         
         if (last_n_days > 0).all():
             last_row = data.iloc[-1]
-            # Save results with daily changes by date
             daily_changes = last_n_days.to_dict()
             results.append({
                 'Symbol': symbol,
