@@ -6,8 +6,7 @@ from github import Github
 # -----------------------
 # CONFIG
 # -----------------------
-STOCK_CSV = "Github_Stocks.csv"
-BHAVCOPY_FOLDER = "./bhavcopy_all/"  # all BSE & NSE CSVs in this folder
+STOCK_CSV = "Github_Stocks.csv"  # stock list in main folder
 GITHUB_TOKEN = "YOUR_PERSONAL_ACCESS_TOKEN"
 REPO_NAME = "username/repo_name"
 CACHE_FILE_PATH = "stock_price_volume.csv"
@@ -19,22 +18,23 @@ df_stocks = pd.read_csv(STOCK_CSV)
 df_stocks.columns = df_stocks.columns.str.strip()
 
 # -----------------------
-# Process all files
+# Process all bhavcopy CSVs
 # -----------------------
-all_files = [f for f in os.listdir(BHAVCOPY_FOLDER) if f.endswith(".csv") and "Github_Stocks" not in f]
+all_files = [f for f in os.listdir(".") if f.endswith(".csv") and f != STOCK_CSV]
 dfs = []
 
 for file in all_files:
     date_str = file.split("_")[0]
     file_date = datetime.strptime(date_str, "%Y%m%d").date()
-    df = pd.read_csv(os.path.join(BHAVCOPY_FOLDER, file))
-    
-    if "_BSE" in file:
+    df = pd.read_csv(file)
+
+    # Detect BSE vs NSE based on columns
+    if 'SC_CODE' in df.columns:
         df = df[df['SC_CODE'].isin(df_stocks['Code'])]
         df = df[['SC_CODE','CLOSE','NO_OF_SHRS']]
         df.rename(columns={'SC_CODE':'Code','CLOSE':'Close','NO_OF_SHRS':'Volume'}, inplace=True)
         df['Exchange'] = 'BSE'
-    elif "_NSE" in file:
+    elif 'SYMBOL' in df.columns:
         df = df[df['SYMBOL'].isin(df_stocks['Code'])]
         df = df[['SYMBOL','CLOSE','TOTTRDQTY']]
         df.rename(columns={'SYMBOL':'Code','CLOSE':'Close','TOTTRDQTY':'Volume'}, inplace=True)
