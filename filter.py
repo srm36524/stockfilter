@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import re
 from datetime import datetime
+from tqdm import tqdm  # for progress bar
 
 # -----------------------
 # CONFIG
@@ -22,24 +23,22 @@ print(f"Loaded {len(df_stocks)} stocks from {STOCK_CSV}")
 all_files = [f for f in os.listdir(".") if f.endswith(".csv") and f != STOCK_CSV]
 dfs = []
 
-for idx, file in enumerate(all_files, 1):
-    print(f"\n[{idx}/{len(all_files)}] Processing file: {file}")
-    
+print(f"Processing {len(all_files)} files...")
+for file in tqdm(all_files, desc="Processing files"):
     # Only process files starting with 8-digit date
     match = re.match(r"(\d{8})", file)
     if not match:
-        print(f"  Skipping (no valid date found)")
+        tqdm.write(f"Skipping file (no valid date found): {file}")
         continue
     
     date_str = match.group(1)
     try:
         file_date = datetime.strptime(date_str, "%Y%m%d").date()
     except ValueError:
-        print(f"  Skipping (invalid date format)")
+        tqdm.write(f"Skipping file (invalid date format): {file}")
         continue
 
     df = pd.read_csv(file)
-    print(f"  Original rows: {len(df)}")
 
     # Detect BSE vs NSE based on columns
     if 'SC_CODE' in df.columns:
@@ -47,15 +46,15 @@ for idx, file in enumerate(all_files, 1):
         df = df[['SC_CODE','CLOSE','NO_OF_SHRS']]
         df.rename(columns={'SC_CODE':'Code','CLOSE':'Close','NO_OF_SHRS':'Volume'}, inplace=True)
         df['Exchange'] = 'BSE'
-        print(f"  BSE rows after filter: {len(df)}")
+        tqdm.write(f"{file}: BSE rows after filter: {len(df)}")
     elif 'SYMBOL' in df.columns:
         df = df[df['SYMBOL'].isin(df_stocks['Code'])]
         df = df[['SYMBOL','CLOSE','TOTTRDQTY']]
         df.rename(columns={'SYMBOL':'Code','CLOSE':'Close','TOTTRDQTY':'Volume'}, inplace=True)
         df['Exchange'] = 'NSE'
-        print(f"  NSE rows after filter: {len(df)}")
+        tqdm.write(f"{file}: NSE rows after filter: {len(df)}")
     else:
-        print(f"  Skipping (unknown format)")
+        tqdm.write(f"Skipping file (unknown format): {file}")
         continue
 
     df['Date'] = file_date
