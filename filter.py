@@ -3,42 +3,34 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
 
-# ---------------------------
-# Streamlit App
-# ---------------------------
-st.title("Stocks with Continuous Positive Change")
+st.title("Equity Stocks with Continuous Positive Change")
 
-# Read CSV from same folder
+# Load CSV
 csv_file = "All Stocks Streamlit.csv"
 df_stocks = pd.read_csv(csv_file)
-
-# Strip spaces from column names (just in case)
 df_stocks.columns = df_stocks.columns.str.strip()
-
-st.write("Sample of stock list from CSV:")
+st.write("Sample stock list:")
 st.dataframe(df_stocks.head())
 
-# User input: number of consecutive positive days
-n_days = st.number_input(
-    "Select number of consecutive positive days",
-    min_value=1,
-    max_value=7,
-    value=3,
-    step=1
-)
+# Filter only equities: ISIN starting with 'INE'
+df_equity = df_stocks[df_stocks['ISIN'].str.startswith('INE')].copy()
+st.write(f"Filtered equity stocks: {len(df_equity)}")
+st.dataframe(df_equity.head())
 
-# Date range: today and last 7 days
+# User input: consecutive positive days
+n_days = st.number_input("Select number of consecutive positive days", min_value=1, max_value=7, value=3, step=1)
+
+# Date range: today + last 7 days
 end_date = datetime.today()
 start_date = end_date - timedelta(days=7)
 
-st.write("Fetching data, please wait...")
+st.write("Fetching data... this may take a while.")
 
 results = []
 
-# Loop through each stock
-for idx, row in df_stocks.iterrows():
-    symbol = row['Code']  # updated column name
-    exchange = row['EXCH']  # updated column name
+for idx, row in df_equity.iterrows():
+    symbol = row['Code']
+    exchange = row['EXCH']
     
     # Construct yfinance ticker
     if exchange.upper() == "NSE":
@@ -47,34 +39,42 @@ for idx, row in df_stocks.iterrows():
         ticker = f"{symbol}.BO"
     else:
         ticker = symbol
-    
+
     try:
         # Fetch historical data
-        data = yf.download(ticker, start=start_date, end=end_date)
-        if data.empty or len(data) < n_days:
+        data = yf.download(ticker, start=start_date, end=end_date, progress=False)
+        if data.empty:
             continue
-
-        # Calculate daily price change
-        data['Daily_Change'] = data['Close'].diff()
-        last_n_days = data['Daily_Change'].tail(n_days)
         
-        if (last_n_days > 0).all():
+        # Ensure 'Close' and 'Volume' exist
+        if 'Close' not in data.columns or 'Volume' not in data.columns:
+            continue
+        
+        # Calculate daily change
+        close_prices = data['Close']
+        daily_change = close_prices.diff().tail(n_days)
+        
+        if len(daily_change) < n_days:
+            continue
+        
+        # Check continuous positive change
+        if (daily_change > 0).all():
             last_row = data.iloc[-1]
-            daily_changes = last_n_days.to_dict()
+            daily_changes_dict = daily_change.to_dict()
             results.append({
                 'Symbol': symbol,
                 'Exchange': exchange,
                 'Last_Close': last_row['Close'],
                 'Last_Volume': last_row['Volume'],
-                'Daily_Change': daily_changes
+                'Daily_Change': daily_changes_dict
             })
     except Exception as e:
-        st.write(f"Error fetching {ticker}: {e}")
+        st.write(f"Skipped {ticker}: {e}")
         continue
 
 # Display results
 if results:
-    st.success(f"Found {len(results)} stocks with continuous positive change for {n_days} days.")
+    st.success(f"Found {len(results)} equity stocks with continuous positive change for {n_days} days.")
     st.dataframe(pd.DataFrame(results))
 else:
-    st.warning(f"No stocks found with continuous positive change for {n_days} days.")
+    st.warning(f"No equity stocks found with continuous positive change for {n_days} days.")
