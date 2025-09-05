@@ -7,8 +7,7 @@ from github import Github
 # CONFIG
 # -----------------------
 STOCK_CSV = "Github_Stocks.csv"
-BSE_FOLDER = "./bhavcopy_bse/"
-NSE_FOLDER = "./bhavcopy_nse/"
+BHAVCOPY_FOLDER = "./bhavcopy_all/"  # all BSE & NSE CSVs in this folder
 GITHUB_TOKEN = "YOUR_PERSONAL_ACCESS_TOKEN"
 REPO_NAME = "username/repo_name"
 CACHE_FILE_PATH = "stock_price_volume.csv"
@@ -20,37 +19,31 @@ df_stocks = pd.read_csv(STOCK_CSV)
 df_stocks.columns = df_stocks.columns.str.strip()
 
 # -----------------------
-# Process BSE files
+# Process all files
 # -----------------------
-bse_files = [f for f in os.listdir(BSE_FOLDER) if f.endswith("_BSE.csv")]
+all_files = [f for f in os.listdir(BHAVCOPY_FOLDER) if f.endswith(".csv") and "Github_Stocks" not in f]
 dfs = []
 
-for file in bse_files:
+for file in all_files:
     date_str = file.split("_")[0]
     file_date = datetime.strptime(date_str, "%Y%m%d").date()
-    df_bse = pd.read_csv(os.path.join(BSE_FOLDER, file))
-    df_bse = df_bse[df_bse['SC_CODE'].isin(df_stocks['Code'])]  # filter stocks
-    df_bse = df_bse[['SC_CODE','CLOSE','NO_OF_SHRS']]
-    df_bse.rename(columns={'SC_CODE':'Code','CLOSE':'Close','NO_OF_SHRS':'Volume'}, inplace=True)
-    df_bse['Date'] = file_date
-    df_bse['Exchange'] = 'BSE'
-    dfs.append(df_bse)
+    df = pd.read_csv(os.path.join(BHAVCOPY_FOLDER, file))
+    
+    if "_BSE" in file:
+        df = df[df['SC_CODE'].isin(df_stocks['Code'])]
+        df = df[['SC_CODE','CLOSE','NO_OF_SHRS']]
+        df.rename(columns={'SC_CODE':'Code','CLOSE':'Close','NO_OF_SHRS':'Volume'}, inplace=True)
+        df['Exchange'] = 'BSE'
+    elif "_NSE" in file:
+        df = df[df['SYMBOL'].isin(df_stocks['Code'])]
+        df = df[['SYMBOL','CLOSE','TOTTRDQTY']]
+        df.rename(columns={'SYMBOL':'Code','CLOSE':'Close','TOTTRDQTY':'Volume'}, inplace=True)
+        df['Exchange'] = 'NSE'
+    else:
+        continue  # skip unrelated CSVs
 
-# -----------------------
-# Process NSE files
-# -----------------------
-nse_files = [f for f in os.listdir(NSE_FOLDER) if f.endswith("_NSE.csv")]
-
-for file in nse_files:
-    date_str = file.split("_")[0]
-    file_date = datetime.strptime(date_str, "%Y%m%d").date()
-    df_nse = pd.read_csv(os.path.join(NSE_FOLDER, file))
-    df_nse = df_nse[df_nse['SYMBOL'].isin(df_stocks['Code'])]
-    df_nse = df_nse[['SYMBOL','CLOSE','TOTTRDQTY']]
-    df_nse.rename(columns={'SYMBOL':'Code','CLOSE':'Close','TOTTRDQTY':'Volume'}, inplace=True)
-    df_nse['Date'] = file_date
-    df_nse['Exchange'] = 'NSE'
-    dfs.append(df_nse)
+    df['Date'] = file_date
+    dfs.append(df)
 
 # -----------------------
 # Combine all data
